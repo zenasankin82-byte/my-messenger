@@ -16,7 +16,7 @@ socket.emit("join", username);
 
 let currentChat = null;
 
-// добавление сообщения
+// добавление сообщения в чат
 function addMessage(msg, isMine) {
   const div = document.createElement("div");
   div.classList.add("message");
@@ -49,7 +49,7 @@ form.addEventListener("submit", function (e) {
     socket.emit("private message", {
       from: username,
       text: input.value,
-      to: currentChat.username // вместо socketId теперь передаем username
+      to: currentChat.username // отправка в комнату по username
     });
 
     input.value = "";
@@ -82,6 +82,7 @@ socket.on("online users", function (users) {
     li.addEventListener("click", () => {
       currentChat = user;
       messages.innerHTML = "";
+      socket.emit("join chat", { from: username, to: user.username });
       alert("Чат с " + user.username);
     });
 
