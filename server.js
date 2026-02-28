@@ -16,8 +16,12 @@ const pool = new Pool({
 const onlineUsers = new Map();
 
 async function init() {
+  // УДАЛЯЕМ старую таблицу, если она существует
+  await pool.query(`DROP TABLE IF EXISTS messages;`);
+
+  // Создаём новую таблицу с колонкой username
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS messages (
+    CREATE TABLE messages (
       id SERIAL PRIMARY KEY,
       sender_id INTEGER NOT NULL,
       receiver_id INTEGER NOT NULL,
@@ -36,7 +40,7 @@ async function init() {
     );
   `);
 
-  console.log("Таблицы messages и chats готовы");
+  console.log("Таблицы messages и chats пересозданы");
 }
 
 app.use(express.static("public"));
