@@ -16,7 +16,7 @@ socket.emit("join", username);
 
 let currentChat = null;
 
-// добавить сообщение
+// добавление сообщения
 function addMessage(msg, isMine) {
   const div = document.createElement("div");
   div.classList.add("message");
@@ -41,7 +41,7 @@ form.addEventListener("submit", function (e) {
   e.preventDefault();
 
   if (!currentChat) {
-    alert("Выберите пользователя из списка онлайн");
+    alert("Выберите пользователя для чата");
     return;
   }
 
@@ -49,7 +49,7 @@ form.addEventListener("submit", function (e) {
     socket.emit("private message", {
       from: username,
       text: input.value,
-      toSocketId: currentChat.socketId
+      to: currentChat.username // вместо socketId теперь передаем username
     });
 
     input.value = "";
@@ -62,7 +62,13 @@ socket.on("private message", function (msg) {
   addMessage(msg, isMine);
 });
 
-// обновление онлайн списка
+// загрузка старых сообщений
+socket.on("load messages", function (msgs) {
+  messages.innerHTML = "";
+  msgs.forEach(addMessage);
+});
+
+// обновление списка онлайн пользователей
 socket.on("online users", function (users) {
   onlineList.innerHTML = "";
 

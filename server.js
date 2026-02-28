@@ -33,12 +33,12 @@ app.use(express.static("public"));
 io.on("connection", async (socket) => {
   console.log("Пользователь подключился");
 
-  // вход пользователя
+  // пользователь сообщает имя и заходит в комнату
   socket.on("join", (username) => {
-    onlineUsers.set(socket.id, {
-      username: username,
-      socketId: socket.id
-    });
+    onlineUsers.set(socket.id, { username });
+
+    // Пользователь входит в комнату с его именем
+    socket.join(username);
 
     io.emit("online users", Array.from(onlineUsers.values()));
   });
@@ -53,16 +53,16 @@ io.on("connection", async (socket) => {
         [data.from, data.text]
       );
 
-      // отправляем получателю
-      io.to(data.toSocketId).emit("private message", {
+      // отправляем сообщение в комнату получателя
+      io.to(data.to).emit("private message", {
         username: data.from,
-        text: data.text
+        text: data.text,
       });
 
-      // отправляем отправителю
+      // отправляем сообщение отправителю
       socket.emit("private message", {
         username: data.from,
-        text: data.text
+        text: data.text,
       });
 
     } catch (err) {
