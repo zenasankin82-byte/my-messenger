@@ -3,8 +3,9 @@ const socket = io();
 const form = document.getElementById("form");
 const input = document.getElementById("input");
 const messages = document.getElementById("messages");
+const onlineList = document.getElementById("online");
 
-// спрашиваем имя один раз
+// имя пользователя
 let username = localStorage.getItem("username");
 
 if (!username) {
@@ -12,10 +13,14 @@ if (!username) {
   localStorage.setItem("username", username);
 }
 
+// сообщаем серверу что мы вошли
+socket.emit("join", username);
+
+// отправка сообщения
 form.addEventListener("submit", function (e) {
   e.preventDefault();
 
-  if (input.value) {
+  if (input.value.trim() !== "") {
     socket.emit("message", {
       username: username,
       text: input.value
@@ -25,7 +30,7 @@ form.addEventListener("submit", function (e) {
   }
 });
 
-// новое сообщение
+// получаем новое сообщение
 socket.on("message", function (msg) {
   const item = document.createElement("li");
   item.textContent = msg.username + ": " + msg.text;
@@ -40,5 +45,16 @@ socket.on("load messages", function (msgs) {
     const item = document.createElement("li");
     item.textContent = msg.username + ": " + msg.text;
     messages.appendChild(item);
+  });
+});
+
+// список онлайн пользователей
+socket.on("online users", function (users) {
+  onlineList.innerHTML = "";
+
+  users.forEach((user) => {
+    const li = document.createElement("li");
+    li.textContent = user + " (online)";
+    onlineList.appendChild(li);
   });
 });

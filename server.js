@@ -9,21 +9,15 @@ const io = new Server(server);
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  ssl: { rejectUnauthorized: false },
 });
 
 // список онлайн пользователей
 const onlineUsers = new Map();
 
 async function init() {
-  // УДАЛЯЕМ старую таблицу
-  await pool.query(`DROP TABLE IF EXISTS messages;`);
-
-  // Создаём новую таблицу правильно
   await pool.query(`
-    CREATE TABLE messages (
+    CREATE TABLE IF NOT EXISTS messages (
       id SERIAL PRIMARY KEY,
       username TEXT NOT NULL,
       text TEXT NOT NULL,
@@ -31,7 +25,7 @@ async function init() {
     );
   `);
 
-  console.log("Таблица messages пересоздана");
+  console.log("Таблица messages готова");
 }
 
 app.use(express.static("public"));
@@ -50,14 +44,15 @@ io.on("connection", async (socket) => {
     const result = await pool.query(
       "SELECT * FROM messages ORDER BY created_at ASC"
     );
-
     socket.emit("load messages", result.rows);
   } catch (err) {
     console.error("Ошибка загрузки:", err);
   }
 
-  // новое сообщение
+  // получение нового сообщения
   socket.on("message", async (data) => {
+    console.log("Получено сообщение:", data);
+
     try {
       const result = await pool.query(
         "INSERT INTO messages (username, text) VALUES ($1, $2) RETURNING *",
