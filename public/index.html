@@ -16,26 +16,13 @@
 
 <ul id="messages"></ul>
 
-<input id="input" autocomplete="off" />
-<button onclick="sendMessage()">Send</button>
+<form id="form">
+    <input id="input" autocomplete="off" />
+    <button>Send</button>
+</form>
 
 <script src="/socket.io/socket.io.js"></script>
-<script>
-    const socket = io();
-    const messages = document.getElementById("messages");
-
-    socket.on("chat message", function(msg) {
-        const li = document.createElement("li");
-        li.textContent = msg;
-        messages.appendChild(li);
-    });
-
-    function sendMessage() {
-        const input = document.getElementById("input");
-        socket.emit("chat message", input.value);
-        input.value = "";
-    }
-</script>
+<script src="script.js"></script>
 
 </body>
 </html>
