@@ -12,7 +12,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-// список онлайн пользователей
+// онлайн пользователи
 const onlineUsers = new Map();
 
 async function init() {
@@ -33,33 +33,38 @@ app.use(express.static("public"));
 io.on("connection", async (socket) => {
   console.log("Пользователь подключился");
 
-  // пользователь сообщает имя
+  // вход пользователя
   socket.on("join", (username) => {
-    onlineUsers.set(socket.id, username);
+    onlineUsers.set(socket.id, {
+      username: username,
+      socketId: socket.id
+    });
+
     io.emit("online users", Array.from(onlineUsers.values()));
   });
 
-  // загрузка старых сообщений
-  try {
-    const result = await pool.query(
-      "SELECT * FROM messages ORDER BY created_at ASC"
-    );
-    socket.emit("load messages", result.rows);
-  } catch (err) {
-    console.error("Ошибка загрузки:", err);
-  }
-
-  // получение нового сообщения
-  socket.on("message", async (data) => {
-    console.log("Получено сообщение:", data);
+  // приватное сообщение
+  socket.on("private message", async (data) => {
+    console.log("Приватное сообщение:", data);
 
     try {
-      const result = await pool.query(
-        "INSERT INTO messages (username, text) VALUES ($1, $2) RETURNING *",
-        [data.username, data.text]
+      await pool.query(
+        "INSERT INTO messages (username, text) VALUES ($1, $2)",
+        [data.from, data.text]
       );
 
-      io.emit("message", result.rows[0]);
+      // отправляем получателю
+      io.to(data.toSocketId).emit("private message", {
+        username: data.from,
+        text: data.text
+      });
+
+      // отправляем отправителю
+      socket.emit("private message", {
+        username: data.from,
+        text: data.text
+      });
+
     } catch (err) {
       console.error("Ошибка сохранения:", err);
     }

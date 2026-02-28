@@ -5,7 +5,6 @@ const input = document.getElementById("input");
 const messages = document.getElementById("messages");
 const onlineList = document.getElementById("online");
 
-// получаем имя пользователя
 let username = localStorage.getItem("username");
 
 if (!username) {
@@ -13,15 +12,16 @@ if (!username) {
   localStorage.setItem("username", username);
 }
 
-// сообщаем серверу что пользователь вошёл
 socket.emit("join", username);
 
-// функция добавления сообщения в чат
-function addMessage(msg) {
+let currentChat = null;
+
+// добавить сообщение
+function addMessage(msg, isMine) {
   const div = document.createElement("div");
   div.classList.add("message");
 
-  if (msg.username === username) {
+  if (isMine) {
     div.classList.add("my-message");
   } else {
     div.classList.add("other-message");
@@ -33,8 +33,6 @@ function addMessage(msg) {
   `;
 
   messages.appendChild(div);
-
-  // автоскролл вниз
   messages.scrollTop = messages.scrollHeight;
 }
 
@@ -42,34 +40,45 @@ function addMessage(msg) {
 form.addEventListener("submit", function (e) {
   e.preventDefault();
 
+  if (!currentChat) {
+    alert("Выберите пользователя из списка онлайн");
+    return;
+  }
+
   if (input.value.trim() !== "") {
-    socket.emit("message", {
-      username: username,
-      text: input.value
+    socket.emit("private message", {
+      from: username,
+      text: input.value,
+      toSocketId: currentChat.socketId
     });
 
     input.value = "";
   }
 });
 
-// получение нового сообщения
-socket.on("message", function (msg) {
-  addMessage(msg);
+// получение приватного сообщения
+socket.on("private message", function (msg) {
+  const isMine = msg.username === username;
+  addMessage(msg, isMine);
 });
 
-// загрузка старых сообщений
-socket.on("load messages", function (msgs) {
-  messages.innerHTML = "";
-  msgs.forEach(addMessage);
-});
-
-// обновление списка онлайн пользователей
+// обновление онлайн списка
 socket.on("online users", function (users) {
   onlineList.innerHTML = "";
 
   users.forEach((user) => {
+    if (user.username === username) return;
+
     const li = document.createElement("li");
-    li.textContent = user + " (online)";
+    li.textContent = user.username;
+    li.style.cursor = "pointer";
+
+    li.addEventListener("click", () => {
+      currentChat = user;
+      messages.innerHTML = "";
+      alert("Чат с " + user.username);
+    });
+
     onlineList.appendChild(li);
   });
 });
