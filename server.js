@@ -16,7 +16,7 @@ const pool = new Pool({
 const onlineUsers = new Map();
 
 async function init() {
-  // УДАЛЯЕМ старую таблицу, если она существует
+  // УДАЛЯЕМ старые таблицы, если они существуют
   await pool.query(`DROP TABLE IF EXISTS messages;`);
   await pool.query(`DROP TABLE IF EXISTS chats;`);
 
