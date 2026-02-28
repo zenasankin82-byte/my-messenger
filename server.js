@@ -14,9 +14,16 @@ const pool = new Pool({
   },
 });
 
+// список онлайн пользователей
+const onlineUsers = new Map();
+
 async function init() {
+  // УДАЛЯЕМ старую таблицу
+  await pool.query(`DROP TABLE IF EXISTS messages;`);
+
+  // Создаём новую таблицу правильно
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS messages (
+    CREATE TABLE messages (
       id SERIAL PRIMARY KEY,
       username TEXT NOT NULL,
       text TEXT NOT NULL,
@@ -24,7 +31,7 @@ async function init() {
     );
   `);
 
-  console.log("Таблица messages готова");
+  console.log("Таблица messages пересоздана");
 }
 
 app.use(express.static("public"));
@@ -32,35 +39,41 @@ app.use(express.static("public"));
 io.on("connection", async (socket) => {
   console.log("Пользователь подключился");
 
-  // Загружаем старые сообщения
+  // пользователь сообщает имя
+  socket.on("join", (username) => {
+    onlineUsers.set(socket.id, username);
+    io.emit("online users", Array.from(onlineUsers.values()));
+  });
+
+  // загрузка старых сообщений
   try {
     const result = await pool.query(
       "SELECT * FROM messages ORDER BY created_at ASC"
     );
 
-    console.log("Загружено сообщений:", result.rows.length);
     socket.emit("load messages", result.rows);
   } catch (err) {
     console.error("Ошибка загрузки:", err);
   }
 
-  // Получаем новое сообщение
+  // новое сообщение
   socket.on("message", async (data) => {
     try {
-      console.log("Получено сообщение:", data);
-
       const result = await pool.query(
         "INSERT INTO messages (username, text) VALUES ($1, $2) RETURNING *",
         [data.username, data.text]
       );
 
-      console.log("Сохранено в БД:", result.rows[0]);
-
-      // Отправляем всем сохранённый объект
       io.emit("message", result.rows[0]);
     } catch (err) {
       console.error("Ошибка сохранения:", err);
     }
+  });
+
+  // отключение
+  socket.on("disconnect", () => {
+    onlineUsers.delete(socket.id);
+    io.emit("online users", Array.from(onlineUsers.values()));
   });
 });
 
