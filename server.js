@@ -12,14 +12,15 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-// онлайн пользователи
+// список онлайн пользователей
 const onlineUsers = new Map();
 
 async function init() {
   // УДАЛЯЕМ старую таблицу, если она существует
   await pool.query(`DROP TABLE IF EXISTS messages;`);
+  await pool.query(`DROP TABLE IF EXISTS chats;`);
 
-  // Создаём новую таблицу с колонкой username
+  // Создаём таблицу сообщений с правильными колонками
   await pool.query(`
     CREATE TABLE messages (
       id SERIAL PRIMARY KEY,
@@ -30,8 +31,9 @@ async function init() {
     );
   `);
 
+  // Создаём таблицу чатов для сохранения переписок
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS chats (
+    CREATE TABLE chats (
       id SERIAL PRIMARY KEY,
       user1_id INTEGER NOT NULL,
       user2_id INTEGER NOT NULL,
@@ -50,11 +52,8 @@ io.on("connection", async (socket) => {
 
   // пользователь сообщает имя и заходит в комнату
   socket.on("join", (username) => {
-    onlineUsers.set(socket.id, {
-      username: username,
-      socketId: socket.id
-    });
-    socket.join(username);  // соединение с комнатой по имени пользователя
+    onlineUsers.set(socket.id, { username });
+    socket.join(username);  // подключение пользователя к его комнате (по имени)
     io.emit("online users", Array.from(onlineUsers.values()));
   });
 
