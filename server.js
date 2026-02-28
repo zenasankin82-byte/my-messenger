@@ -18,6 +18,7 @@ async function init() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS messages (
       id SERIAL PRIMARY KEY,
+      username TEXT NOT NULL,
       text TEXT NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -31,6 +32,7 @@ app.use(express.static("public"));
 io.on("connection", async (socket) => {
   console.log("Пользователь подключился");
 
+  // Загружаем старые сообщения
   try {
     const result = await pool.query(
       "SELECT * FROM messages ORDER BY created_at ASC"
@@ -42,18 +44,20 @@ io.on("connection", async (socket) => {
     console.error("Ошибка загрузки:", err);
   }
 
-  socket.on("message", async (msg) => {
+  // Получаем новое сообщение
+  socket.on("message", async (data) => {
     try {
-      console.log("Получено сообщение:", msg);
+      console.log("Получено сообщение:", data);
 
       const result = await pool.query(
-        "INSERT INTO messages (text) VALUES ($1) RETURNING *",
-        [msg]
+        "INSERT INTO messages (username, text) VALUES ($1, $2) RETURNING *",
+        [data.username, data.text]
       );
 
       console.log("Сохранено в БД:", result.rows[0]);
 
-      io.emit("message", msg);
+      // Отправляем всем сохранённый объект
+      io.emit("message", result.rows[0]);
     } catch (err) {
       console.error("Ошибка сохранения:", err);
     }
