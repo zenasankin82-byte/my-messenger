@@ -12,53 +12,85 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
+// список онлайн пользователей
 const onlineUsers = new Map();
 
-// Создание таблицы сообщений (если её нет)
 async function init() {
+  // УДАЛЯЕМ старые таблицы, если они существуют
+  await pool.query(`DROP TABLE IF EXISTS messages;`);
+  await pool.query(`DROP TABLE IF EXISTS chats;`);
+
+  // Создаём таблицу сообщений с правильными колонками
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS messages (
+    CREATE TABLE messages (
       id SERIAL PRIMARY KEY,
-      sender TEXT NOT NULL,
-      receiver TEXT NOT NULL,
+      sender_id INTEGER NOT NULL,
+      receiver_id INTEGER NOT NULL,
       text TEXT NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
-  console.log("Таблица messages готова");
+
+  // Создаём таблицу чатов для сохранения переписок
+  await pool.query(`
+    CREATE TABLE chats (
+      id SERIAL PRIMARY KEY,
+      user1_id INTEGER NOT NULL,
+      user2_id INTEGER NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user1_id, user2_id)
+    );
+  `);
+
+  console.log("Таблицы messages и chats пересозданы");
 }
 
 app.use(express.static("public"));
 
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
   console.log("Пользователь подключился");
 
-  // Пользователь входит в чат
+  // пользователь сообщает имя и заходит в комнату
   socket.on("join", (username) => {
-    onlineUsers.set(socket.id, username);
-    socket.join(username);
+    onlineUsers.set(socket.id, { username });
+    socket.join(username);  // подключение пользователя к его комнате (по имени)
     io.emit("online users", Array.from(onlineUsers.values()));
   });
 
-  // Отправка приватного сообщения
+  // отправка приватного сообщения
   socket.on("private message", async (data) => {
+    console.log("Приватное сообщение:", data);
+
     try {
-      // Сохраняем сообщение в базе
-      await pool.query(
-        "INSERT INTO messages (sender, receiver, text) VALUES ($1, $2, $3)",
+      // находим или создаём чат между двумя пользователями
+      const chatResult = await pool.query(`
+        INSERT INTO chats (user1_id, user2_id)
+        VALUES (
+          (SELECT id FROM users WHERE username = $1 LIMIT 1),
+          (SELECT id FROM users WHERE username = $2 LIMIT 1)
+        )
+        ON CONFLICT (user1_id, user2_id) DO NOTHING
+        RETURNING id
+      `, [data.from, data.to]);
+
+      const chatId = chatResult.rows[0]?.id;
+
+      // сохраняем сообщение
+      const result = await pool.query(
+        "INSERT INTO messages (sender_id, receiver_id, text) VALUES ((SELECT id FROM users WHERE username = $1 LIMIT 1), (SELECT id FROM users WHERE username = $2 LIMIT 1), $3) RETURNING *",
         [data.from, data.to, data.text]
       );
 
-      // Отправляем сообщение получателю
+      // отправляем сообщение в комнаты
       io.to(data.to).emit("private message", {
-        sender: data.from,
-        text: data.text,
+        username: data.from,
+        text: data.text
       });
 
-      // Отправляем сообщение отправителю
+      // отправляем сообщение отправителю
       socket.emit("private message", {
-        sender: data.from,
-        text: data.text,
+        username: data.from,
+        text: data.text
       });
 
     } catch (err) {
@@ -66,25 +98,23 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Загрузка истории чата
+  // загрузка старых сообщений
   socket.on("join chat", async (data) => {
     try {
-      const result = await pool.query(
-        `SELECT * FROM messages
-         WHERE (sender = $1 AND receiver = $2)
-            OR (sender = $2 AND receiver = $1)
-         ORDER BY created_at ASC`,
-        [data.from, data.to]
-      );
+      const result = await pool.query(`
+        SELECT * FROM messages
+        WHERE (sender_id = (SELECT id FROM users WHERE username = $1 LIMIT 1) AND receiver_id = (SELECT id FROM users WHERE username = $2 LIMIT 1))
+        OR (sender_id = (SELECT id FROM users WHERE username = $2 LIMIT 1) AND receiver_id = (SELECT id FROM users WHERE username = $1 LIMIT 1))
+        ORDER BY created_at ASC
+      `, [data.from, data.to]);
 
       socket.emit("load messages", result.rows);
-
     } catch (err) {
       console.error("Ошибка загрузки сообщений:", err);
     }
   });
 
-  // Пользователь отключился
+  // отключение пользователя
   socket.on("disconnect", () => {
     onlineUsers.delete(socket.id);
     io.emit("online users", Array.from(onlineUsers.values()));
