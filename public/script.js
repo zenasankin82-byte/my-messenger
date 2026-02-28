@@ -5,7 +5,7 @@ const input = document.getElementById("input");
 const messages = document.getElementById("messages");
 const onlineList = document.getElementById("online");
 
-// имя пользователя
+// получаем имя пользователя
 let username = localStorage.getItem("username");
 
 if (!username) {
@@ -13,8 +13,30 @@ if (!username) {
   localStorage.setItem("username", username);
 }
 
-// сообщаем серверу что мы вошли
+// сообщаем серверу что пользователь вошёл
 socket.emit("join", username);
+
+// функция добавления сообщения в чат
+function addMessage(msg) {
+  const div = document.createElement("div");
+  div.classList.add("message");
+
+  if (msg.username === username) {
+    div.classList.add("my-message");
+  } else {
+    div.classList.add("other-message");
+  }
+
+  div.innerHTML = `
+    <div class="username">${msg.username}</div>
+    <div>${msg.text}</div>
+  `;
+
+  messages.appendChild(div);
+
+  // автоскролл вниз
+  messages.scrollTop = messages.scrollHeight;
+}
 
 // отправка сообщения
 form.addEventListener("submit", function (e) {
@@ -30,25 +52,18 @@ form.addEventListener("submit", function (e) {
   }
 });
 
-// получаем новое сообщение
+// получение нового сообщения
 socket.on("message", function (msg) {
-  const item = document.createElement("li");
-  item.textContent = msg.username + ": " + msg.text;
-  messages.appendChild(item);
+  addMessage(msg);
 });
 
 // загрузка старых сообщений
 socket.on("load messages", function (msgs) {
   messages.innerHTML = "";
-
-  msgs.forEach((msg) => {
-    const item = document.createElement("li");
-    item.textContent = msg.username + ": " + msg.text;
-    messages.appendChild(item);
-  });
+  msgs.forEach(addMessage);
 });
 
-// список онлайн пользователей
+// обновление списка онлайн пользователей
 socket.on("online users", function (users) {
   onlineList.innerHTML = "";
 
